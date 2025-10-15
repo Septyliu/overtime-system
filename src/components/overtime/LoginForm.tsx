@@ -82,7 +82,7 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-primary">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 mb-4">
+          <div className="inline-flex items-center justify-center w-120 h-20 mb-4">
             <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
