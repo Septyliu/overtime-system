@@ -22,6 +22,7 @@ interface ReportData {
   approved_requests: number;
   rejected_requests: number;
   pending_requests: number;
+  submittedDates: string[];
 }
 
 const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
@@ -44,11 +45,32 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
         .toISOString().split('T')[0];
 
       if (currentUser.role === 'employee') {
-        // Employee can only see their own summary
-        const summary = await OvertimeService.getUserReport(currentUser.nik, startDate, endDate);
+        // Karyawan hanya melihat ringkasan miliknya sendiri berbasis data pengajuan
+        const allUserRequests = await OvertimeService.getRequestsByNik(currentUser.nik);
+        const monthRequests = allUserRequests.filter(item => 
+          item.date >= startDate && item.date <= endDate
+        );
+
+        const submittedDates = Array.from(new Set(
+          monthRequests.map(r => (r.createdAt || '').split('T')[0]).filter(Boolean)
+        )).sort();
+
+        const summary: ReportData = {
+          nik: currentUser.nik,
+          name: monthRequests[0]?.name || currentUser.name || '',
+          total_hours: monthRequests
+            .filter(r => r.status === 'approved')
+            .reduce((sum, r) => sum + r.duration, 0),
+          total_requests: monthRequests.length,
+          approved_requests: monthRequests.filter(r => r.status === 'approved').length,
+          rejected_requests: monthRequests.filter(r => r.status === 'rejected').length,
+          pending_requests: monthRequests.filter(r => r.status === 'pending').length,
+          submittedDates,
+        };
+
         setReportData([summary]);
       } else {
-        // Get all requests for the month
+        // Admin/approver melihat seluruh pengajuan pada bulan terpilih
         const allRequests = await OvertimeService.getAllRequests();
         const monthRequests = allRequests.filter(item => 
           item.date >= startDate && item.date <= endDate
@@ -67,10 +89,15 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
               approved_requests: 0,
               rejected_requests: 0,
               pending_requests: 0,
+              submittedDates: [],
             };
           }
 
           data[item.nik].total_requests++;
+          const submittedDateOnly = (item.createdAt || '').split('T')[0];
+          if (submittedDateOnly) {
+            data[item.nik].submittedDates.push(submittedDateOnly);
+          }
           
           if (item.status === 'approved') {
             data[item.nik].total_hours += item.duration;
@@ -82,7 +109,12 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
           }
         });
 
-        setReportData(Object.values(data));
+        const grouped = Object.values(data).map(item => ({
+          ...item,
+          submittedDates: Array.from(new Set(item.submittedDates)).sort(),
+        }));
+
+        setReportData(grouped);
       }
       toast.success('Report berhasil di-generate');
     } catch (error) {
@@ -105,11 +137,12 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
       .toISOString().split('T')[0];
     const periode = `${startDate} s/d ${endDate}`;
 
-    const headers = ['Tanggal', 'NIK', 'Nama', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
+    const headers = ['Tanggal', 'NIK', 'Nama', 'Tanggal Submit', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
     const rows = reportData.map(row => [
       periode,
       row.nik,
       row.name,
+      (row.submittedDates && row.submittedDates.length > 0) ? row.submittedDates.join(' | ') : '-',
       row.total_hours.toFixed(2),
       row.total_requests,
       row.approved_requests,
@@ -179,6 +212,7 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
               <TableRow>
                 <TableHead>NIK</TableHead>
                 <TableHead>Nama</TableHead>
+                <TableHead>Tanggal Submit</TableHead>
                 <TableHead className="text-right">Total Jam Lembur</TableHead>
                 <TableHead className="text-right">Total Pengajuan</TableHead>
                 <TableHead className="text-right">Disetujui</TableHead>
@@ -189,7 +223,7 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
             <TableBody>
               {reportData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {selectedMonth 
                       ? 'Klik "Generate Report" untuk melihat data'
                       : 'Pilih bulan dan klik "Generate Report"'}
@@ -200,6 +234,9 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
                   <TableRow key={row.nik}>
                     <TableCell className="font-medium">{row.nik}</TableCell>
                     <TableCell>{row.name}</TableCell>
+                    <TableCell className="whitespace-pre-wrap break-words">
+                      {row.submittedDates && row.submittedDates.length > 0 ? row.submittedDates.join(', ') : '-'}
+                    </TableCell>
                     <TableCell className="text-right font-semibold text-primary">
                       {row.total_hours.toFixed(2)} jam
                     </TableCell>
