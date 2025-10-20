@@ -22,6 +22,8 @@ interface ReportData {
   approved_requests: number;
   rejected_requests: number;
   pending_requests: number;
+  // Actual overtime dates within the selected month
+  overtimeDates: string[];
   submittedDates: string[];
 }
 
@@ -51,6 +53,10 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
           item.date >= startDate && item.date <= endDate
         );
 
+        const overtimeDates = Array.from(new Set(
+          monthRequests.map(r => r.date).filter(Boolean)
+        )).sort();
+
         const submittedDates = Array.from(new Set(
           monthRequests.map(r => (r.createdAt || '').split('T')[0]).filter(Boolean)
         )).sort();
@@ -65,6 +71,7 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
           approved_requests: monthRequests.filter(r => r.status === 'approved').length,
           rejected_requests: monthRequests.filter(r => r.status === 'rejected').length,
           pending_requests: monthRequests.filter(r => r.status === 'pending').length,
+          overtimeDates,
           submittedDates,
         };
 
@@ -89,11 +96,16 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
               approved_requests: 0,
               rejected_requests: 0,
               pending_requests: 0,
+              overtimeDates: [],
               submittedDates: [],
             };
           }
 
           data[item.nik].total_requests++;
+          // Collect actual overtime date
+          if (item.date) {
+            data[item.nik].overtimeDates.push(item.date);
+          }
           const submittedDateOnly = (item.createdAt || '').split('T')[0];
           if (submittedDateOnly) {
             data[item.nik].submittedDates.push(submittedDateOnly);
@@ -111,6 +123,7 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
 
         const grouped = Object.values(data).map(item => ({
           ...item,
+          overtimeDates: Array.from(new Set(item.overtimeDates)).sort(),
           submittedDates: Array.from(new Set(item.submittedDates)).sort(),
         }));
 
@@ -137,11 +150,12 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
       .toISOString().split('T')[0];
     const periode = `${startDate} s/d ${endDate}`;
 
-    const headers = ['Tanggal', 'NIK', 'Nama', 'Tanggal Submit', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
+    const headers = ['Periode', 'NIK', 'Nama', 'Tanggal Lembur', 'Tanggal Submit', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
     const rows = reportData.map(row => [
       periode,
       row.nik,
       row.name,
+      (row.overtimeDates && row.overtimeDates.length > 0) ? row.overtimeDates.join(' | ') : '-',
       (row.submittedDates && row.submittedDates.length > 0) ? row.submittedDates.join(' | ') : '-',
       row.total_hours.toFixed(2),
       row.total_requests,
@@ -212,6 +226,7 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
               <TableRow>
                 <TableHead>NIK</TableHead>
                 <TableHead>Nama</TableHead>
+                <TableHead>Tanggal Lembur</TableHead>
                 <TableHead>Tanggal Submit</TableHead>
                 <TableHead className="text-right">Total Jam Lembur</TableHead>
                 <TableHead className="text-right">Total Pengajuan</TableHead>
@@ -223,7 +238,7 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
             <TableBody>
               {reportData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     {selectedMonth 
                       ? 'Klik "Generate Report" untuk melihat data'
                       : 'Pilih bulan dan klik "Generate Report"'}
@@ -234,6 +249,9 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
                   <TableRow key={row.nik}>
                     <TableCell className="font-medium">{row.nik}</TableCell>
                     <TableCell>{row.name}</TableCell>
+                    <TableCell className="whitespace-pre-wrap break-words">
+                      {row.overtimeDates && row.overtimeDates.length > 0 ? row.overtimeDates.join(', ') : '-'}
+                    </TableCell>
                     <TableCell className="whitespace-pre-wrap break-words">
                       {row.submittedDates && row.submittedDates.length > 0 ? row.submittedDates.join(', ') : '-'}
                     </TableCell>
