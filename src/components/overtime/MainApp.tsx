@@ -45,12 +45,13 @@ const MainApp = ({
   const canAccessTab = (tab: string) => {
     switch (tab) {
       case 'submit':
-        return currentUser.role === 'approver1';
+        return ['employee', 'approver1'].includes(currentUser.role);
       case 'approval':
         return ['approver1', 'approver2', 'admin'].includes(currentUser.role);
       case 'monitoring':
-      case 'report':
         return true;
+      case 'report':
+        return currentUser.role !== 'employee';
       case 'user-management':
       case 'approval-management':
         return currentUser.role === 'admin';
