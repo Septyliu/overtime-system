@@ -95,6 +95,24 @@ export class OvertimeService {
     }
   }
 
+  // Get overtime requests by NIK (for employee self-monitoring)
+  static async getRequestsByNik(nik: string): Promise<OvertimeRequestDisplay[]> {
+    try {
+      const { data, error } = await supabase
+        .from('overtime_requests')
+        .select('*')
+        .eq('nik', nik)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return (data || []).map(convertToDisplayFormat);
+    } catch (error) {
+      console.error('Error fetching overtime requests by NIK:', error);
+      throw new Error('Failed to fetch overtime requests');
+    }
+  }
+
   // Get pending requests for an approver
   static async getPendingRequestsForApprover(approverNik: string): Promise<OvertimeRequestDisplay[]> {
     try {

@@ -67,6 +67,16 @@ const UserManagement = ({ onDataRefresh }: UserManagementProps) => {
       return;
     }
 
+    // For approver1 role, Approver 2 is required and Approver 1 must be none
+    if (newUser.role === 'approver1') {
+      if (!newUser.approver2_nik || newUser.approver2_nik === 'none') {
+        toast.error('Approver 2 wajib diisi untuk role Approver 1');
+        return;
+      }
+      // Ensure approver1_nik is not set for approver1 role
+      newUser.approver1_nik = 'none';
+    }
+
     setActionLoading('add');
     try {
       const userData = {
@@ -180,12 +190,12 @@ const UserManagement = ({ onDataRefresh }: UserManagementProps) => {
         return user.role === 'approver1' || user.role === 'approver2' || user.role === 'admin';
       }
       
-      // For approver1 role, can have approver2 or admin as approver2
+      // For approver1 role, they must only have approver2 as their superior
       if (currentRole === 'approver1') {
-        return user.role === 'approver2' || user.role === 'admin';
+        return user.role === 'approver2';
       }
       
-      // For approver2 role, can have admin as approver2
+      // For approver2 role, can have admin as approver
       if (currentRole === 'approver2') {
         return user.role === 'admin';
       }
@@ -286,8 +296,8 @@ const UserManagement = ({ onDataRefresh }: UserManagementProps) => {
                   </SelectContent>
                 </Select>
               </div>
-              {/* Approver fields - show for all roles except admin */}
-              {newUser.role !== 'admin' && (
+              {/* Approver fields based on role */}
+              {newUser.role === 'employee' && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="approver1">Approver 1</Label>
@@ -323,8 +333,33 @@ const UserManagement = ({ onDataRefresh }: UserManagementProps) => {
                   </div>
                 </div>
               )}
-              
-              {/* Show approver info for admin role */}
+              {newUser.role === 'approver1' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="approver2">Approver 2 (Wajib)</Label>
+                    <Select value={newUser.approver2_nik || 'none'} onValueChange={(value) => setNewUser({ ...newUser, approver2_nik: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Approver 2" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Tidak ada</SelectItem>
+                        {getAvailableApprovers(newUser.role, newUser.nik).map((user) => (
+                          <SelectItem key={user.nik} value={user.nik}>
+                            {user.name} ({user.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+              {newUser.role === 'approver2' && (
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Approver 2 tidak memerlukan atasan di sistem.
+                  </p>
+                </div>
+              )}
               {newUser.role === 'admin' && (
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">
@@ -332,6 +367,8 @@ const UserManagement = ({ onDataRefresh }: UserManagementProps) => {
                   </p>
                 </div>
               )}
+              
+              
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Batal

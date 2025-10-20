@@ -91,8 +91,15 @@ const ReportTab = ({ onDataRefresh }: ReportTabProps) => {
       return;
     }
 
-    const headers = ['NIK', 'Nama', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
+    // Determine date range text for the selected month
+    const startDate = `${selectedMonth}-01`;
+    const endDate = new Date(new Date(startDate).getFullYear(), new Date(startDate).getMonth() + 1, 0)
+      .toISOString().split('T')[0];
+    const periode = `${startDate} s/d ${endDate}`;
+
+    const headers = ['Tanggal', 'NIK', 'Nama', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
     const rows = reportData.map(row => [
+      periode,
       row.nik,
       row.name,
       row.total_hours.toFixed(2),
