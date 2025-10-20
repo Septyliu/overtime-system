@@ -2,16 +2,17 @@ import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { OvertimeRequestDisplay } from '@/types/overtime';
+import { OvertimeRequestDisplay, User } from '@/types/overtime';
 import { CheckCircle, XCircle, Clock, TrendingUp, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { OvertimeService } from '@/services/overtimeService';
 
 interface MonitoringTabProps {
-  onDataRefresh?: () => void;
+  currentUser: User;
+  onDataRefresh?: number;
 }
 
-const MonitoringTab = ({ onDataRefresh }: MonitoringTabProps) => {
+const MonitoringTab = ({ currentUser, onDataRefresh }: MonitoringTabProps) => {
   const [requests, setRequests] = useState<OvertimeRequestDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -21,20 +22,25 @@ const MonitoringTab = ({ onDataRefresh }: MonitoringTabProps) => {
     rejected: 0,
   });
 
-  // Load all overtime requests
+  // Load overtime requests based on role
   useEffect(() => {
     const loadRequests = async () => {
       try {
         setLoading(true);
-        const allRequests = await OvertimeService.getAllRequests();
-        setRequests(allRequests);
+        let fetched: OvertimeRequestDisplay[] = [];
+        if (['approver1', 'approver2', 'admin'].includes(currentUser.role)) {
+          fetched = await OvertimeService.getAllRequests();
+        } else {
+          fetched = await OvertimeService.getRequestsByNik(currentUser.nik);
+        }
+        setRequests(fetched);
         
         // Calculate stats
         const newStats = {
-          total: allRequests.length,
-          pending: allRequests.filter(r => r.status === 'pending').length,
-          approved: allRequests.filter(r => r.status === 'approved').length,
-          rejected: allRequests.filter(r => r.status === 'rejected').length,
+          total: fetched.length,
+          pending: fetched.filter(r => r.status === 'pending').length,
+          approved: fetched.filter(r => r.status === 'approved').length,
+          rejected: fetched.filter(r => r.status === 'rejected').length,
         };
         setStats(newStats);
       } catch (error) {
@@ -46,7 +52,7 @@ const MonitoringTab = ({ onDataRefresh }: MonitoringTabProps) => {
     };
 
     loadRequests();
-  }, [onDataRefresh]);
+  }, [currentUser.nik, currentUser.role, onDataRefresh]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

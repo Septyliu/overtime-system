@@ -7,9 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { FileBarChart, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { OvertimeService } from '@/services/overtimeService';
+import { User } from '@/types/overtime';
 
 interface ReportTabProps {
-  onDataRefresh?: () => void;
+  currentUser: User;
+  onDataRefresh?: number;
 }
 
 interface ReportData {
@@ -22,7 +24,7 @@ interface ReportData {
   pending_requests: number;
 }
 
-const ReportTab = ({ onDataRefresh }: ReportTabProps) => {
+const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [reportData, setReportData] = useState<ReportData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,41 +43,47 @@ const ReportTab = ({ onDataRefresh }: ReportTabProps) => {
       const endDate = new Date(new Date(startDate).getFullYear(), new Date(startDate).getMonth() + 1, 0)
         .toISOString().split('T')[0];
 
-      // Get all requests for the month
-      const allRequests = await OvertimeService.getAllRequests();
-      const monthRequests = allRequests.filter(item => 
-        item.date >= startDate && item.date <= endDate
-      );
+      if (currentUser.role === 'employee') {
+        // Employee can only see their own summary
+        const summary = await OvertimeService.getUserReport(currentUser.nik, startDate, endDate);
+        setReportData([summary]);
+      } else {
+        // Get all requests for the month
+        const allRequests = await OvertimeService.getAllRequests();
+        const monthRequests = allRequests.filter(item => 
+          item.date >= startDate && item.date <= endDate
+        );
 
-      // Group by user
-      const data: Record<string, ReportData> = {};
+        // Group by user
+        const data: Record<string, ReportData> = {};
 
-      monthRequests.forEach(item => {
-        if (!data[item.nik]) {
-          data[item.nik] = {
-            nik: item.nik,
-            name: item.name,
-            total_hours: 0,
-            total_requests: 0,
-            approved_requests: 0,
-            rejected_requests: 0,
-            pending_requests: 0,
-          };
-        }
+        monthRequests.forEach(item => {
+          if (!data[item.nik]) {
+            data[item.nik] = {
+              nik: item.nik,
+              name: item.name,
+              total_hours: 0,
+              total_requests: 0,
+              approved_requests: 0,
+              rejected_requests: 0,
+              pending_requests: 0,
+            };
+          }
 
-        data[item.nik].total_requests++;
-        
-        if (item.status === 'approved') {
-          data[item.nik].total_hours += item.duration;
-          data[item.nik].approved_requests++;
-        } else if (item.status === 'rejected') {
-          data[item.nik].rejected_requests++;
-        } else if (item.status === 'pending') {
-          data[item.nik].pending_requests++;
-        }
-      });
+          data[item.nik].total_requests++;
+          
+          if (item.status === 'approved') {
+            data[item.nik].total_hours += item.duration;
+            data[item.nik].approved_requests++;
+          } else if (item.status === 'rejected') {
+            data[item.nik].rejected_requests++;
+          } else if (item.status === 'pending') {
+            data[item.nik].pending_requests++;
+          }
+        });
 
-      setReportData(Object.values(data));
+        setReportData(Object.values(data));
+      }
       toast.success('Report berhasil di-generate');
     } catch (error) {
       console.error('Error generating report:', error);
@@ -91,8 +99,15 @@ const ReportTab = ({ onDataRefresh }: ReportTabProps) => {
       return;
     }
 
-    const headers = ['NIK', 'Nama', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
+    // Determine date range text for the selected month
+    const startDate = `${selectedMonth}-01`;
+    const endDate = new Date(new Date(startDate).getFullYear(), new Date(startDate).getMonth() + 1, 0)
+      .toISOString().split('T')[0];
+    const periode = `${startDate} s/d ${endDate}`;
+
+    const headers = ['Tanggal', 'NIK', 'Nama', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
     const rows = reportData.map(row => [
+      periode,
       row.nik,
       row.name,
       row.total_hours.toFixed(2),
