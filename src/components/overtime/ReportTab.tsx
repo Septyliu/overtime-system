@@ -32,17 +32,14 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
-  const formatDateWithDay = (isoDate: string): string => {
+  const formatIsoToDdMmYy = (isoDate: string, fourDigitYear = false): string => {
     if (!isoDate) return '';
-    const [y, m, d] = isoDate.split('-').map(Number);
-    const dateObj = new Date(y, (m || 1) - 1, d || 1);
-    const dateText = new Intl.DateTimeFormat('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }).format(dateObj);
-    const dayText = new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(dateObj);
-    return `${dateText} (${dayText})`;
+    const [yStr, mStr, dStr] = isoDate.split('-');
+    const dd = dStr?.padStart(2, '0') || '';
+    const mm = mStr?.padStart(2, '0') || '';
+    const yyyy = yStr || '';
+    const yy = yyyy.slice(-2);
+    return `${dd}/${mm}/${fourDigitYear ? yyyy : yy}`;
   };
 
   const generateReport = async () => {
@@ -161,10 +158,10 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
       .toISOString().split('T')[0];
     const periode = `${startDate} s/d ${endDate}`;
 
-    const headers = ['Tanggal', 'NIK', 'Nama', 'Tanggal Actual Overtime', 'Tanggal Submit', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
+    const headers = ['Tanggal', 'NIK', 'Nama', 'Tanggal Lembur', 'Tanggal Submit', 'Total Jam Lembur', 'Total Pengajuan', 'Disetujui', 'Ditolak', 'Pending'];
     const rows = reportData.map(row => {
       const actualDatesText = (row.actualOvertimeDates && row.actualOvertimeDates.length > 0)
-        ? row.actualOvertimeDates.map(formatDateWithDay).join(' | ')
+        ? row.actualOvertimeDates.map(d => formatIsoToDdMmYy(d)).join(' | ')
         : '-';
       const submittedDatesText = (row.submittedDates && row.submittedDates.length > 0)
         ? row.submittedDates.join(' | ')
@@ -195,6 +192,61 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
     link.click();
 
     toast.success('Report berhasil di-export');
+  };
+
+  const exportToExcel = async () => {
+    if (reportData.length === 0) {
+      toast.error('Generate report terlebih dahulu');
+      return;
+    }
+    try {
+      const xlsx = await import('xlsx');
+      const headers = ['Nama', 'Total Lembur', 'Tanggal Lembur'];
+      const rows = reportData.map(row => [
+        row.name,
+        row.actualOvertimeDates.length,
+        row.actualOvertimeDates.map(d => formatIsoToDdMmYy(d)).join(', '),
+      ]);
+      const ws = xlsx.utils.aoa_to_sheet([headers, ...rows]);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'Report');
+      xlsx.writeFile(wb, `overtime_report_${selectedMonth}.xlsx`);
+      toast.success('Excel berhasil di-export');
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      toast.error('Gagal export Excel');
+    }
+  };
+
+  const exportToPDF = async () => {
+    if (reportData.length === 0) {
+      toast.error('Generate report terlebih dahulu');
+      return;
+    }
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const headers = ['Nama', 'Total Lembur', 'Tanggal Lembur'];
+      const rows = reportData.map(row => [
+        row.name,
+        String(row.actualOvertimeDates.length),
+        row.actualOvertimeDates.map(d => formatIsoToDdMmYy(d)).join(', '),
+      ]);
+      autoTable(doc, {
+        head: [headers],
+        body: rows,
+        styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+        columnStyles: { 2: { cellWidth: 240 } },
+        headStyles: { fillColor: [22, 119, 255] },
+        margin: { top: 16 },
+      });
+      doc.save(`overtime_report_${selectedMonth}.pdf`);
+      toast.success('PDF berhasil di-export');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error('Gagal export PDF');
+    }
   };
 
   return (
@@ -231,10 +283,20 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
               )}
             </Button>
             {reportData.length > 0 && (
-              <Button variant="outline" onClick={exportToCSV}>
-                <Download className="w-4 h-4 mr-2" />
-                Export CSV
-              </Button>
+              <>
+                <Button variant="outline" onClick={exportToCSV}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export CSV
+                </Button>
+                <Button variant="outline" onClick={exportToExcel}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Excel
+                </Button>
+                <Button variant="outline" onClick={exportToPDF}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export PDF
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -245,7 +307,7 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
               <TableRow>
                 <TableHead>NIK</TableHead>
                 <TableHead>Nama</TableHead>
-                <TableHead>Tanggal Actual Overtime</TableHead>
+                <TableHead>Tanggal Lembur</TableHead>
                 <TableHead>Tanggal Submit</TableHead>
                 <TableHead className="text-right">Total Jam Lembur</TableHead>
                 <TableHead className="text-right">Total Pengajuan</TableHead>
@@ -270,12 +332,12 @@ const ReportTab = ({ currentUser, onDataRefresh }: ReportTabProps) => {
                     <TableCell>{row.name}</TableCell>
                     <TableCell className="whitespace-pre-wrap break-words">
                       {row.actualOvertimeDates && row.actualOvertimeDates.length > 0 ? (
-                        row.actualOvertimeDates.length <= 6 ? (
-                          row.actualOvertimeDates.map(formatDateWithDay).join(', ')
+                        row.actualOvertimeDates.length <= 12 ? (
+                          row.actualOvertimeDates.map(d => formatIsoToDdMmYy(d)).join(', ')
                         ) : (
                           <ul className="list-disc pl-4">
                             {row.actualOvertimeDates.map((d) => (
-                              <li key={d}>{formatDateWithDay(d)}</li>
+                              <li key={d}>{formatIsoToDdMmYy(d)}</li>
                             ))}
                           </ul>
                         )
