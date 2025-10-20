@@ -45,7 +45,7 @@ const MainApp = ({
   const canAccessTab = (tab: string) => {
     switch (tab) {
       case 'submit':
-        return currentUser.role === 'employee' || currentUser.role === 'approver1';
+        return currentUser.role === 'approver1';
       case 'approval':
         return ['approver1', 'approver2', 'admin'].includes(currentUser.role);
       case 'monitoring':
@@ -138,7 +138,7 @@ const MainApp = ({
 
           {canAccessTab('report') && (
             <TabsContent value="report">
-              <ReportTab onDataRefresh={refreshKey} />
+              <ReportTab currentUser={currentUser} onDataRefresh={refreshKey} />
             </TabsContent>
           )}
 
